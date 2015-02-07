@@ -2,32 +2,49 @@
 
 Storm components for interacting with HDFS file systems
 
+Storm HDFS is modified to support partitioned writes. 
+For example, if logs have date fields in them like "2015-02-02", you can partition logs according to this field.
+For now, 
+* This modification only works for Storm bolt implementations and outputing normal text files (or zipped).
+* This modification only is intended to work with Hadoop 1.x, which do not have a working sync() implementation. Hence, it aggregates files in local file system to prevent data loss and then copies to remote HDFS cluster.
+
 
 ## Usage
-The following example will write pipe("|")-delimited files to the HDFS path hdfs://localhost:54310/foo. After every
-1,000 tuples it will sync filesystem, making that data visible to other HDFS clients. It will rotate files when they
-reach 5 megabytes in size.
+The following example will write pipe("\t")-delimited files. After every
+1,000 tuples it will sync to local filesystem. It will rotate files when they reach 5 megabytes in size or they do not 
+get written for 10 minutes. After rotation, it will compress the file and copy to the HDFS path hdfs://localhost:54310/foo.
 
 ```java
-// use "|" instead of "," for field delimiter
+// use "\t" instead of "," for field delimiter
 RecordFormat format = new DelimitedRecordFormat()
-        .withFieldDelimiter("|");
+				.withFields(hdfsFields)
+				.withFieldDelimiter("\t");
 
 // sync the filesystem after every 1k tuples
 SyncPolicy syncPolicy = new CountSyncPolicy(1000);
 
 // rotate files when they reach 5MB
-FileRotationPolicy rotationPolicy = new FileSizeRotationPolicy(5.0f, Units.MB);
+FileRotationPolicy rotationPolicy = new TickingFileSizeRotationPolicy(5.0f, Units.MB)
+				.withTimeLimit(10.0f, TimeUnit.MINUTES);
 
-FileNameFormat fileNameFormat = new DefaultFileNameFormat()
-        .withPath("/foo/");
+PartitionedFileNameFormat fileNameFormat = new DefaultPartitionedFileNameFormat()
+				.withPath("/data/storm")
+				.withPrefix("mylogs")
+				.withExtension(".log");
 
-HdfsBolt bolt = new HdfsBolt()
-        .withFsUrl("hdfs://localhost:54310")
-        .withFileNameFormat(fileNameFormat)
-        .withRecordFormat(format)
-        .withRotationPolicy(rotationPolicy)
-        .withSyncPolicy(syncPolicy);
+// Instantiate the export manager
+AbstractExportManager exportManager = new DefaultExportManager()
+		        .withFileNameFormat(fileNameFormat)
+		        .withRecordFormat(format)
+		        .withRotationPolicy(rotationPolicy)
+		        .withSyncPolicy(syncPolicy);
+		        .addRotationAction(new CompressAndMoveFileAction().toDestination("/foo").withCompression(CompressionTypeEnum.BZIP2));
+		
+PartitionedHdfsBolt bolt = new PartitionedHdfsBolt()
+				.withFsUrl("hdfs://localhost:54310")
+				.withExportManager(exportManager);
+
+
 ```
 
 ### Packaging a Topology
@@ -85,18 +102,7 @@ By default, storm-hdfs uses the following Hadoop dependencies:
 <dependency>
     <groupId>org.apache.hadoop</groupId>
     <artifactId>hadoop-client</artifactId>
-    <version>2.2.0</version>
-    <exclusions>
-        <exclusion>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-        </exclusion>
-    </exclusions>
-</dependency>
-<dependency>
-    <groupId>org.apache.hadoop</groupId>
-    <artifactId>hadoop-hdfs</artifactId>
-    <version>2.2.0</version>
+    <version>1.2.1</version>
     <exclusions>
         <exclusion>
             <groupId>org.slf4j</groupId>
@@ -234,89 +240,6 @@ If you are using Trident and sequence files you can do something like this:
                 .withFsUrl("hdfs://localhost:54310")
                 .addRotationAction(new MoveFileAction().withDestination("/dest2/"));
 ```
-
-
-## Support for HDFS Sequence Files
-
-The `org.apache.storm.hdfs.bolt.SequenceFileBolt` class allows you to write storm data to HDFS sequence files:
-
-```java
-        // sync the filesystem after every 1k tuples
-        SyncPolicy syncPolicy = new CountSyncPolicy(1000);
-
-        // rotate files when they reach 5MB
-        FileRotationPolicy rotationPolicy = new FileSizeRotationPolicy(5.0f, Units.MB);
-
-        FileNameFormat fileNameFormat = new DefaultFileNameFormat()
-                .withExtension(".seq")
-                .withPath("/data/");
-
-        // create sequence format instance.
-        DefaultSequenceFormat format = new DefaultSequenceFormat("timestamp", "sentence");
-
-        SequenceFileBolt bolt = new SequenceFileBolt()
-                .withFsUrl("hdfs://localhost:54310")
-                .withFileNameFormat(fileNameFormat)
-                .withSequenceFormat(format)
-                .withRotationPolicy(rotationPolicy)
-                .withSyncPolicy(syncPolicy)
-                .withCompressionType(SequenceFile.CompressionType.RECORD)
-                .withCompressionCodec("deflate");
-```
-
-The `SequenceFileBolt` requires that you provide a `org.apache.storm.hdfs.bolt.format.SequenceFormat` that maps tuples to
-key/value pairs:
-
-```java
-public interface SequenceFormat extends Serializable {
-    Class keyClass();
-    Class valueClass();
-
-    Writable key(Tuple tuple);
-    Writable value(Tuple tuple);
-}
-```
-
-## Trident API
-storm-hdfs also includes a Trident `state` implementation for writing data to HDFS, with an API that closely mirrors
-that of the bolts.
-
- ```java
-         Fields hdfsFields = new Fields("field1", "field2");
-
-         FileNameFormat fileNameFormat = new DefaultFileNameFormat()
-                 .withPath("/trident")
-                 .withPrefix("trident")
-                 .withExtension(".txt");
-
-         RecordFormat recordFormat = new DelimitedRecordFormat()
-                 .withFields(hdfsFields);
-
-         FileRotationPolicy rotationPolicy = new FileSizeRotationPolicy(5.0f, FileSizeRotationPolicy.Units.MB);
-
-        HdfsState.Options options = new HdfsState.HdfsFileOptions()
-                .withFileNameFormat(fileNameFormat)
-                .withRecordFormat(recordFormat)
-                .withRotationPolicy(rotationPolicy)
-                .withFsUrl("hdfs://localhost:54310");
-
-         StateFactory factory = new HdfsStateFactory().withOptions(options);
-
-         TridentState state = stream
-                 .partitionPersist(factory, hdfsFields, new HdfsUpdater(), new Fields());
- ```
-
- To use the sequence file `State` implementation, use the `HdfsState.SequenceFileOptions`:
-
- ```java
-        HdfsState.Options seqOpts = new HdfsState.SequenceFileOptions()
-                .withFileNameFormat(fileNameFormat)
-                .withSequenceFormat(new DefaultSequenceFormat("key", "data"))
-                .withRotationPolicy(rotationPolicy)
-                .withFsUrl("hdfs://localhost:54310")
-                .addRotationAction(new MoveFileAction().toDestination("/dest2/"));
-```
-
 
 ## License
 

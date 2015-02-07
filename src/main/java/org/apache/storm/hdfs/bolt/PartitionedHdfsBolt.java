@@ -63,13 +63,11 @@ public class PartitionedHdfsBolt extends AbstractPartitionedHdfsBolt{
 
     @Override
     public void execute(Tuple tuple) {
-    	String datetime = tuple.getString(3);
-		String date = tuple.getString(4);
-		String server = tuple.getString(5);
+		String partitionKey = tuple.getStringByField("partition");
 		
-		if(!this.currentFiles.containsKey(date)){
+		if(!this.currentFiles.containsKey(partitionKey)){
 			AbstractExportManager exportManager = new DefaultExportManager()
-			.withFileNameFormat(((DefaultPartitionedFileNameFormat) DeepCopier.copy(this.exportManagerPrototype.fileNameFormat)).withPartitionKey(date))
+			.withFileNameFormat(((DefaultPartitionedFileNameFormat) DeepCopier.copy(this.exportManagerPrototype.fileNameFormat)).withPartitionKey(partitionKey))
 			.withRecordFormat((RecordFormat) DeepCopier.copy(this.exportManagerPrototype.recordFormat))
 			.withRotationPolicy((FileRotationPolicy) DeepCopier.copy(this.exportManagerPrototype.rotationPolicy))
 			.withSyncPolicy((SyncPolicy) DeepCopier.copy(this.exportManagerPrototype.syncPolicy))
@@ -79,10 +77,10 @@ public class PartitionedHdfsBolt extends AbstractPartitionedHdfsBolt{
 			.useDistributedForWrite()
 			.init();
 			
-			this.currentFiles.put(date, exportManager);
+			this.currentFiles.put(partitionKey, exportManager);
 		}
 		
-		AbstractExportManager currentExportManager = this.currentFiles.get(date);
+		AbstractExportManager currentExportManager = this.currentFiles.get(partitionKey);
 		currentExportManager.writeToOutputFile(tuple, collector);
     }
 
