@@ -11,8 +11,8 @@ For now,
 
 ## Usage
 The following example will write tab("\t")-delimited files to local path /data/foo with prefix "mylogs". Written files will be
-partitioned according to partition key emitted from previous bolt with name "partition". For example one file will be 
-/data/foo/2015-02-02/mylogs_1422911254115_1_2015_02_02.log, if partition key is date in format yyyy-MM-dd. 
+partitioned according to partition key emitted from previous bolt with name "partition". 
+For example one file will be /data/foo/2015-02-02/mylogs_1422911254115_1_2015_02_02.log, if partition key is date in format yyyy-MM-dd. 
 After every 1,000 tuples it will sync to local filesystem. It will rotate files when they reach 5 megabytes in size or they do not 
 get written for 10 minutes. After rotation, it will compress the file and copy to the HDFS path hdfs://localhost:54310/foo.
 
