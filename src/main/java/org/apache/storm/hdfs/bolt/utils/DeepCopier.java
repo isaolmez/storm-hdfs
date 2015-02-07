@@ -39,16 +39,5 @@ public class DeepCopier {
 	    }
 	    return obj;
 	}
-	
-	public static void main(String[] args){
-		FileNameFormat fileNameFormat = new DefaultFileNameFormat()
-		.withPath("/data/storm_bolt")
-		.withPrefix("clicks")
-		.withExtension(".log");
-		
-		FileNameFormat copy = (FileNameFormat)copy(fileNameFormat);
-		System.out.println(copy);
-		
-	}
 }
 

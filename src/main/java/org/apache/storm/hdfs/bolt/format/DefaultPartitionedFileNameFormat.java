@@ -8,7 +8,7 @@ import backtype.storm.task.TopologyContext;
 
 @SuppressWarnings("serial")
 public class DefaultPartitionedFileNameFormat implements PartitionedFileNameFormat {
-    private String path = "/data/stats/default";
+    private String path = "/data/default";
     private String prefix = "";
     private String extension = ".txt";
     private String partitionKey = "";

@@ -67,11 +67,4 @@ public class TickingFileSizeRotationPolicy implements TickingFileRotationPolicy 
 	public long getInterval() {
 		return this.timeLimit/2;
 	}
-	
-	public static void main(String[] args) throws InterruptedException{
-		long t1 =System.currentTimeMillis();
-		Thread.sleep(1000);
-		long t2 =System.currentTimeMillis();
-		System.out.println((t2-t1)*1.0f);
-	}
 }

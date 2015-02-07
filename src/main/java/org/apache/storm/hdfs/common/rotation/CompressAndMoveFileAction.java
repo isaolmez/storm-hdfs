@@ -96,11 +96,4 @@ public class CompressAndMoveFileAction implements RotationActionWithLocalFS {
 		}
 		
 	}
-
-	public static void main(String[] args) {
-		Path sourcePath = new Path("/data/stats/2014_12_12/dasdsa.log");
-		Path destPath = new Path(sourcePath.getParent(), sourcePath.getName());
-		System.out.println(destPath);
-	}
-
 }
