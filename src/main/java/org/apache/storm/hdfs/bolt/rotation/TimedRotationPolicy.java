@@ -2,7 +2,7 @@ package org.apache.storm.hdfs.bolt.rotation;
 
 import backtype.storm.tuple.Tuple;
 
-public class TimedRotationPolicy implements FileRotationPolicy {
+public class TimedRotationPolicy implements TickingFileRotationPolicy {
 
     public static enum TimeUnit {
 
@@ -52,4 +52,9 @@ public class TimedRotationPolicy implements FileRotationPolicy {
     public long getInterval(){
         return this.interval;
     }
+
+	@Override
+	public boolean shouldFinalize() {
+		return true;
+	}
 }

@@ -46,6 +46,7 @@ public abstract class AbstractHdfsBolt extends BaseRichBolt {
     private Path currentFile;
     protected OutputCollector collector;
     protected transient FileSystem fs;
+    protected transient FileSystem distributedFs;
     protected SyncPolicy syncPolicy;
     protected FileRotationPolicy rotationPolicy;
     protected FileNameFormat fileNameFormat;
@@ -82,9 +83,16 @@ public abstract class AbstractHdfsBolt extends BaseRichBolt {
      * @param collector
      */
     public final void prepare(Map conf, TopologyContext topologyContext, OutputCollector collector){
+    	System.out.println("****************"+conf);
         this.writeLock = new Object();
-        if (this.syncPolicy == null) throw new IllegalStateException("SyncPolicy must be specified.");
-        if (this.rotationPolicy == null) throw new IllegalStateException("RotationPolicy must be specified.");
+        if (this.syncPolicy == null) {
+        	throw new IllegalStateException("SyncPolicy must be specified.");
+        }
+        
+        if (this.rotationPolicy == null) { 
+        	throw new IllegalStateException("RotationPolicy must be specified.");
+        }
+        
         if (this.fsUrl == null) {
             throw new IllegalStateException("File system URL must be specified.");
         }
@@ -98,7 +106,6 @@ public abstract class AbstractHdfsBolt extends BaseRichBolt {
                 this.hdfsConfig.set(key, String.valueOf(map.get(key)));
             }
         }
-
 
         try{
             HdfsSecurityUtil.login(conf, hdfsConfig);
